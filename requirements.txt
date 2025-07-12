@@ -1,12 +1,11 @@
-unstructured
-tiktoken
-pinecone-client
-pypdf
+sentence-transformers
+langchain
 flask
-openai==0.28
-langchain-community
-pandas
-numpy
+pypdf
 python-dotenv
-pinecone
+pinecone[grpc]
+langchain-pinecone
+langchain_community
+langchain_openai
+langchain_experimental
 -e .
