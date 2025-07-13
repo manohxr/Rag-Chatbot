@@ -9,4 +9,5 @@ numpy
 python-dotenv
 pinecone
 flask
+pymongo
 -e .
