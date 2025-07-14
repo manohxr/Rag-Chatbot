@@ -30,7 +30,6 @@
 
 
   </div>
-
   <script>
   const form = document.getElementById('chat-form');
   const input = document.getElementById('user-input');
@@ -71,18 +70,22 @@
     method: 'POST',
     body: formData
   })
-  .then(response => response.json())
-  .then(data => {
-    // Show uploaded file name as a bot message
-    addMessage('bot', `✅ Uploaded: ${file.name}`);
-    addMessage('bot', data.message);
-    pdfInput.value = ''; // Reset input
-  })
-  .catch(err => {
-    console.error('Upload error:', err);
-    addMessage('bot', '❌ Error uploading file.');
-  });
+    .then(async response => {
+      const data = await response.json();
+      if (!response.ok) {
+        addMessage('bot', data.message || '❌ Upload failed.');
+        throw new Error(data.message || 'Upload failed.');
+      }
+      addMessage('bot', `✅ Uploaded: ${file.name}`);
+      addMessage('bot', data.message);
+      pdfInput.value = '';
+    })
+    .catch(err => {
+      console.error('Upload error:', err);
+      addMessage('bot', '❌ Error uploading file.');
+    });
 });
+
 
 
   function addMessage(sender, text) {

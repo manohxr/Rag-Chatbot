@@ -1,14 +1,11 @@
 from flask import Flask, render_template, request, jsonify
 import os
+from src.helper import answer_query, update_index
 
 app = Flask(__name__)
 
-# Make sure the upload folder exists
 UPLOAD_FOLDER = os.path.join(os.getcwd(), 'Data')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-
-def reverse_message(message):
-    return message[::-1]
 
 @app.route('/')
 def index():
@@ -18,8 +15,8 @@ def index():
 def chat():
     data = request.get_json()
     user_message = data.get('message', '')
-    reversed_message = reverse_message(user_message)
-    return jsonify({'response': reversed_message})
+    response_text = answer_query(user_message)
+    return jsonify({'response': response_text})
 
 @app.route('/upload_pdf', methods=['POST'])
 def upload_pdf():
@@ -36,6 +33,11 @@ def upload_pdf():
 
     save_path = os.path.join(UPLOAD_FOLDER, file.filename)
     file.save(save_path)
+
+    # Immediately update index with new PDF
+    update_message = update_index()
+
+    return jsonify({'message': f'File {file.filename} uploaded! {update_message}'}), 200
 
 if __name__ == '__main__':
     app.run(debug=True)
