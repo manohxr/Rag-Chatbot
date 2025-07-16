@@ -6,10 +6,12 @@
   <title>ChatBot</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
 </head>
+
 <body>
   <div class="chat-container">
     <header class="chat-header">
       <h1>RAG Chatbot</h1>
+      <a href="/logout" class="logout-btn">Logout</a>
     </header>
 
     <main class="chat-window" id="chat-window"></main>

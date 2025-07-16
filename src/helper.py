@@ -1,3 +1,4 @@
+# helper.py
 import os
 from dotenv import load_dotenv
 from langchain.document_loaders import DirectoryLoader, PyPDFLoader
@@ -10,94 +11,57 @@ from pinecone import Pinecone
 load_dotenv()
 openai_api_key = os.getenv("OPENAI_API_KEY")
 pinecone_api_key = os.getenv("PINECONE_API_KEY")
-
 pc = Pinecone(api_key=pinecone_api_key)
-index_name = "rag-openai"
 
-# One-time index setup
-def create_or_get_index():
-    if not pc.has_index(index_name):
+def create_or_get_index(username):
+    if not pc.has_index(username):
         pc.create_index_for_model(
-            name=index_name,
+            name=username,
             cloud="aws",
             region="us-east-1",
-            embed={
-                "model": "llama-text-embed-v2",
-                "field_map": {"text": "chunk_text"}
-            }
+            embed={"model": "llama-text-embed-v2", "field_map": {"text": "chunk_text"}}
         )
     index = pc.Index(
-        host=f"https://{index_name}-uzat91r.svc.aped-4627-b74a.pinecone.io"
+        host=f"https://{username}-uzat91r.svc.aped-4627-b74a.pinecone.io"
     )
     return index
 
-index = create_or_get_index()  # keep warm
+def load_pdf_files(user_folder):
+    loader = DirectoryLoader(user_folder, glob="*.pdf", loader_cls=PyPDFLoader)
+    return loader.load()
 
-# Load all PDFs
-def load_pdf_files(folder_path='Data/'):
-    loader = DirectoryLoader(folder_path, glob="*.pdf", loader_cls=PyPDFLoader)
-    documents = loader.load()
-    return documents
-
-# Chunk them
 def chunk_data(docs, chunk_size=800, chunk_overlap=50):
-    splitter = RecursiveCharacterTextSplitter(
-        chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+    splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
     return splitter.split_documents(docs)
 
-# Convert to upsert format
 def convert_chunks_to_list(chunks):
-    text_list = []
-    id_counter = 1
-    for doc in chunks:
-        text_list.append({
-            "_id": "rec" + str(id_counter),
-            "chunk_text": doc.page_content
-        })
-        id_counter += 1
-    return text_list
+    return [{"_id": f"rec{i}", "chunk_text": doc.page_content} for i, doc in enumerate(chunks, 1)]
 
-# Upsert once
-def update_index():
-    docs = load_pdf_files()
+def update_index(username):
+    index = create_or_get_index(username)
+    docs = load_pdf_files(f'Data/{username}')
     chunks = chunk_data(docs)
     text_list = convert_chunks_to_list(chunks)
-    batch_size = 96
+    for i in range(0, len(text_list), 96):
+        index.upsert_records("example-namespace", text_list[i:i+96])
+    return f"Index updated with {len(text_list)} chunks."
 
-    x, y = 0, batch_size
-    while x < len(text_list):
-        index.upsert_records(
-            "example-namespace",
-            text_list[x:y]
-        )
-        x += batch_size
-        y += batch_size
-
-    return f"✅ Index updated with {len(text_list)} chunks."
-
-# Query Pinecone
-def retrieve_query(query, k=4):
+def retrieve_query(query, username, k=4):
+    index = create_or_get_index(username)
     results = index.search(
         namespace="example-namespace",
         query={"inputs": {"text": query}, "top_k": k},
         fields=["chunk_text"]
     )
-
     hits = results['result']['hits']
-    docs = []
-    for hit in hits:
-        text = hit.get('fields', {}).get('chunk_text', '')
-        docs.append(Document(
-            page_content=text,
-            metadata={"id": hit.get('_id'), "score": hit.get('_score')}
-        ))
-    return docs
+    return [Document(page_content=hit['fields']['chunk_text']) for hit in hits if 'fields' in hit]
 
-# Run QA
-def answer_query(query):
-    docs = retrieve_query(query)
+def answer_query(query, username):
+    docs = retrieve_query(query, username)
     llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0.5)
     chain = load_qa_chain(llm, chain_type="stuff")
-    response = chain.invoke({"input_documents": docs, "question": query})
-    return response["output_text"]
-
+    if docs:
+        return chain.invoke({"input_documents": docs, "question": query})["output_text"]
+    else:
+        # fallback to direct LLM if no docs
+        return llm.invoke(query).content

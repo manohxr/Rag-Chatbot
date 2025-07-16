@@ -10,4 +10,7 @@ python-dotenv
 pinecone
 flask
 pymongo
+Flask-Login
+Flask-SQLAlchemy
+werkzeug
 -e .
