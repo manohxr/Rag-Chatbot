@@ -54,14 +54,26 @@ def retrieve_query(query, username, k=4):
         fields=["chunk_text"]
     )
     hits = results['result']['hits']
-    return [Document(page_content=hit['fields']['chunk_text']) for hit in hits if 'fields' in hit]
+    docs = []
+    for hit in hits:
+        if 'fields' in hit:
+            docs.append(Document(
+                page_content=hit['fields']['chunk_text'],
+                metadata={"score": hit.get('_score', 0.0)}
+            ))
+    return docs
+
 
 def answer_query(query, username):
     docs = retrieve_query(query, username)
     llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0.5)
     chain = load_qa_chain(llm, chain_type="stuff")
-    if docs:
-        return chain.invoke({"input_documents": docs, "question": query})["output_text"]
+
+    threshold = 0.09
+    relevant_docs = [doc for doc in docs if doc.metadata.get("score", 0) >= threshold]
+
+    if relevant_docs:
+        return chain.invoke({"input_documents": relevant_docs, "question": query})["output_text"]
     else:
-        # fallback to direct LLM if no docs
         return llm.invoke(query).content
+

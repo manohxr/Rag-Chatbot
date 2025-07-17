@@ -53,7 +53,7 @@
     })
     .then(response => response.json())
     .then(data => {
-      simulateTypingEffect(data.response);
+      displayMessage(data.response);
     })
     .catch(err => {
       console.error('Error:', err);
@@ -109,37 +109,24 @@
     chatWindow.scrollTop = chatWindow.scrollHeight;
   }
 
-  function simulateTypingEffect(text) {
-    const messageWrapper = document.createElement('div');
-    messageWrapper.classList.add('message', 'bot');
+  function displayMessage(text) {
+  const messageWrapper = document.createElement('div');
+  messageWrapper.classList.add('message', 'bot');
 
-    const messageText = document.createElement('div');
-    messageText.classList.add('message-text');
-    messageWrapper.appendChild(messageText);
+  const messageText = document.createElement('div');
+  messageText.classList.add('message-text');
+  messageText.textContent = text;
+  messageWrapper.appendChild(messageText);
 
-    const time = document.createElement('div');
-    time.classList.add('message-time');
-    messageWrapper.appendChild(time);
+  const time = document.createElement('div');
+  time.classList.add('message-time');
+  time.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  messageWrapper.appendChild(time);
 
-    chatWindow.appendChild(messageWrapper);
-    chatWindow.scrollTop = chatWindow.scrollHeight;
+  chatWindow.appendChild(messageWrapper);
+  chatWindow.scrollTop = chatWindow.scrollHeight;
+}
 
-    let i = 0;
-    const typingSpeed = 30;
-
-    function typeChar() {
-      if (i < text.length) {
-        messageText.textContent += text.charAt(i);
-        i++;
-        chatWindow.scrollTop = chatWindow.scrollHeight;
-        setTimeout(typeChar, typingSpeed);
-      } else {
-        time.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      }
-    }
-
-    typeChar();
-  }
 </script>
 
 </body>
