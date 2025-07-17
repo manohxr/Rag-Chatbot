@@ -17,117 +17,127 @@
     <main class="chat-window" id="chat-window"></main>
 
     <form id="chat-form">
-  <input type="text" id="user-input" placeholder="Type your message..." required autocomplete="off"/>
-  <label for="pdf-upload" class="upload-icon" title="Upload PDF">
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-    stroke-linecap="round" stroke-linejoin="round" class="feather feather-paperclip">
-    <path d="M21.44 11.05L12.12 20.37a5 5 0 0 1-7.07-7.07l9.32-9.32a3 3 0 1 1 4.24 4.24l-9.19 9.19a1 1 0 1 1-1.41-1.41l9.19-9.19" />
-  </svg>
-</label>
-
-
-  <input type="file" id="pdf-upload" accept="application/pdf" style="display: none;" />
-  <button type="submit">Send</button>
-</form>
-
-
+      <input type="text" id="user-input" placeholder="Type your message..." required autocomplete="off" />
+      <label for="pdf-upload" class="upload-icon" title="Upload PDF">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round" class="feather feather-paperclip">
+          <path d="M21.44 11.05L12.12 20.37a5 5 0 0 1-7.07-7.07l9.32-9.32a3 3 0 1 1 4.24 4.24l-9.19 9.19a1 1 0 1 1-1.41-1.41l9.19-9.19" />
+        </svg>
+      </label>
+      <input type="file" id="pdf-upload" accept="application/pdf" style="display: none;" />
+      <button type="submit">Send</button>
+    </form>
   </div>
+
   <script>
-  const form = document.getElementById('chat-form');
-  const input = document.getElementById('user-input');
-  const chatWindow = document.getElementById('chat-window');
-  const pdfInput = document.getElementById('pdf-upload');
+    const form = document.getElementById('chat-form');
+    const input = document.getElementById('user-input');
+    const chatWindow = document.getElementById('chat-window');
+    const pdfInput = document.getElementById('pdf-upload');
 
-  form.addEventListener('submit', function(e) {
-    e.preventDefault();
-    const message = input.value.trim();
-    if (message === '') return;
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      const message = input.value.trim();
+      if (message === '') return;
 
-    addMessage('user', message);
-    input.value = '';
-
-    fetch('/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: message })
-    })
-    .then(response => response.json())
-    .then(data => {
-      displayMessage(data.response);
-    })
-    .catch(err => {
-      console.error('Error:', err);
-      addMessage('bot', 'Error connecting to server.');
+      addMessage('user', message);
+      input.value = '';
+      streamBotResponse(message);
     });
-  });
 
-  pdfInput.addEventListener('change', function() {
-  const file = pdfInput.files[0];
-  if (!file) return;
+    pdfInput.addEventListener('change', function () {
+      const file = pdfInput.files[0];
+      if (!file) return;
 
-  const formData = new FormData();
-  formData.append('pdf', file);
+      const formData = new FormData();
+      formData.append('pdf', file);
 
-  fetch('/upload_pdf', {
-    method: 'POST',
-    body: formData
-  })
-    .then(async response => {
-      const data = await response.json();
-      if (!response.ok) {
-        addMessage('bot', data.message || '❌ Upload failed.');
-        throw new Error(data.message || 'Upload failed.');
-      }
-      addMessage('bot', `✅ Uploaded: ${file.name}`);
-      addMessage('bot', data.message);
-      pdfInput.value = '';
-    })
-    .catch(err => {
-      console.error('Upload error:', err);
-      addMessage('bot', '❌ Error uploading file.');
+      fetch('/upload_pdf', {
+        method: 'POST',
+        body: formData
+      })
+      .then(async response => {
+        const data = await response.json();
+        if (!response.ok) {
+          addMessage('bot', data.message || '❌ Upload failed.');
+          throw new Error(data.message || 'Upload failed.');
+        }
+        addMessage('bot', `✅ Uploaded: ${file.name}`);
+        addMessage('bot', data.message);
+        pdfInput.value = '';
+      })
+      .catch(err => {
+        console.error('Upload error:', err);
+        addMessage('bot', '❌ Error uploading file.');
+      });
     });
-});
 
+    function addMessage(sender, text) {
+      const messageWrapper = document.createElement('div');
+      messageWrapper.classList.add('message', sender);
 
+      const messageText = document.createElement('div');
+      messageText.classList.add('message-text');
+      messageText.textContent = text;
 
-  function addMessage(sender, text) {
-    const messageWrapper = document.createElement('div');
-    messageWrapper.classList.add('message', sender);
+      const time = document.createElement('div');
+      time.classList.add('message-time');
+      time.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-    const messageText = document.createElement('div');
-    messageText.classList.add('message-text');
-    messageText.textContent = text;
+      messageWrapper.appendChild(messageText);
+      messageWrapper.appendChild(time);
 
-    const time = document.createElement('div');
-    time.classList.add('message-time');
-    time.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      chatWindow.appendChild(messageWrapper);
+      chatWindow.scrollTop = chatWindow.scrollHeight;
+    }
 
-    messageWrapper.appendChild(messageText);
-    messageWrapper.appendChild(time);
+    function streamBotResponse(userMessage) {
+      const messageWrapper = document.createElement('div');
+      messageWrapper.classList.add('message', 'bot');
 
-    chatWindow.appendChild(messageWrapper);
-    chatWindow.scrollTop = chatWindow.scrollHeight;
-  }
+      const messageText = document.createElement('div');
+      messageText.classList.add('message-text');
+      messageWrapper.appendChild(messageText);
 
-  function displayMessage(text) {
-  const messageWrapper = document.createElement('div');
-  messageWrapper.classList.add('message', 'bot');
+      const time = document.createElement('div');
+      time.classList.add('message-time');
+      messageWrapper.appendChild(time);
 
-  const messageText = document.createElement('div');
-  messageText.classList.add('message-text');
-  messageText.textContent = text;
-  messageWrapper.appendChild(messageText);
+      chatWindow.appendChild(messageWrapper);
+      chatWindow.scrollTop = chatWindow.scrollHeight;
 
-  const time = document.createElement('div');
-  time.classList.add('message-time');
-  time.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  messageWrapper.appendChild(time);
+      fetch('/chat', {  // Make sure your Flask uses `/chat` or `/chat_stream`
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: userMessage })
+      })
+      .then(response => {
+        if (!response.body) throw new Error('ReadableStream not supported');
 
-  chatWindow.appendChild(messageWrapper);
-  chatWindow.scrollTop = chatWindow.scrollHeight;
-}
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let fullText = '';
 
-</script>
-
+        function read() {
+          reader.read().then(({ done, value }) => {
+            if (done) {
+              time.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+              return;
+            }
+            const chunk = decoder.decode(value);
+            fullText += chunk;
+            messageText.textContent = fullText;
+            chatWindow.scrollTop = chatWindow.scrollHeight;
+            read();
+          });
+        }
+        read();
+      })
+      .catch(err => {
+        console.error('Streaming error:', err);
+        addMessage('bot', '❌ Error receiving streamed response.');
+      });
+    }
+  </script>
 </body>
 </html>

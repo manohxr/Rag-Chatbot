@@ -4,14 +4,14 @@ from dotenv import load_dotenv
 from langchain.document_loaders import DirectoryLoader, PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.schema import Document
-from langchain.chains.question_answering import load_qa_chain
-from langchain.chat_models import ChatOpenAI
 from pinecone import Pinecone
+from openai import OpenAI
 
 load_dotenv()
 openai_api_key = os.getenv("OPENAI_API_KEY")
 pinecone_api_key = os.getenv("PINECONE_API_KEY")
 pc = Pinecone(api_key=pinecone_api_key)
+client = OpenAI()
 
 def create_or_get_index(username):
     if not pc.has_index(username):
@@ -63,17 +63,30 @@ def retrieve_query(query, username, k=4):
             ))
     return docs
 
-
-def answer_query(query, username):
+def answer_query_stream(query, username):
+    """
+    Yields chunks from OpenAI streaming — using RAG context if relevant.
+    """
     docs = retrieve_query(query, username)
-    llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0.5)
-    chain = load_qa_chain(llm, chain_type="stuff")
-
     threshold = 0.09
     relevant_docs = [doc for doc in docs if doc.metadata.get("score", 0) >= threshold]
 
     if relevant_docs:
-        return chain.invoke({"input_documents": relevant_docs, "question": query})["output_text"]
+        context = "\n\n".join(doc.page_content for doc in relevant_docs)
+        prompt = f"Answer the user using ONLY the context below if possible.\n\nContext:\n{context}\n\nQuestion:\n{query}"
     else:
-        return llm.invoke(query).content
+        prompt = query
 
+    stream = client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[
+            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "user", "content": prompt}
+        ],
+        stream=True
+    )
+
+    for chunk in stream:
+        content = chunk.choices[0].delta.content if chunk.choices[0].delta else None
+        if content:
+            yield content

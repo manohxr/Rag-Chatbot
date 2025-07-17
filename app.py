@@ -1,21 +1,21 @@
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify, Response, stream_with_context
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 import os
-from src.helper import answer_query, update_index
+from src.helper import answer_query_stream, update_index
 
 app = Flask(__name__)
 app.secret_key = 'rag_chatbot'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
 db = SQLAlchemy(app)
 
-# Create user model
+# User model
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(150), unique=True, nullable=False)
     password = db.Column(db.String(150), nullable=False)
 
-# Create DB tables
+# Create tables
 with app.app_context():
     db.create_all()
 
@@ -36,9 +36,7 @@ def signup():
         db.session.add(new_user)
         db.session.commit()
 
-        # Make user upload folder
         os.makedirs(os.path.join(UPLOAD_ROOT, username), exist_ok=True)
-
         return redirect(url_for('login'))
 
     return render_template('signup.html')
@@ -74,8 +72,13 @@ def chat():
 
     data = request.get_json()
     user_message = data.get('message', '')
-    response_text = answer_query(user_message, session['username'])
-    return jsonify({'response': response_text})
+
+    def generate():
+        for chunk in answer_query_stream(user_message, session['username']):
+            yield chunk
+
+    # Note: This sends plain text chunks continuously
+    return Response(stream_with_context(generate()), mimetype='text/plain')
 
 @app.route('/upload_pdf', methods=['POST'])
 def upload_pdf():
