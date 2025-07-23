@@ -106,7 +106,7 @@
       chatWindow.appendChild(messageWrapper);
       chatWindow.scrollTop = chatWindow.scrollHeight;
 
-      fetch('/chat', {  // Make sure your Flask uses `/chat` or `/chat_stream`
+      fetch('/chat', { 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: userMessage })
@@ -138,6 +138,63 @@
         addMessage('bot', '❌ Error receiving streamed response.');
       });
     }
+    
+async function loadHistory() {
+  const response = await fetch('/get_history');
+  const history = await response.json();
+
+  let lastDate = null;
+
+  history.forEach(chat => {
+    const ts = new Date(chat.timestamp);
+    const dateStr = ts.toDateString();
+
+    if (dateStr !== lastDate) {
+      insertDateSeparator(dateStr);
+      lastDate = dateStr;
+    }
+
+    addMessage('user', chat.user_message, chat.timestamp);
+    addMessage('bot', chat.bot_response, chat.timestamp);
+  });
+}
+
+function insertDateSeparator(dateStr) {
+  const separator = document.createElement('div');
+  separator.classList.add('date-separator');
+  separator.textContent = dateStr;
+  chatWindow.appendChild(separator);
+}
+
+
+function addMessage(sender, text, timeValue = null) {
+  const messageWrapper = document.createElement('div');
+  messageWrapper.classList.add('message', sender);
+
+  const messageText = document.createElement('div');
+  messageText.classList.add('message-text');
+  messageText.textContent = text;
+
+  const time = document.createElement('div');
+  time.classList.add('message-time');
+
+  if (timeValue) {
+    const ts = new Date(timeValue);
+    time.textContent = ts.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  } else {
+    time.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+
+  messageWrapper.appendChild(messageText);
+  messageWrapper.appendChild(time);
+
+  chatWindow.appendChild(messageWrapper);
+  chatWindow.scrollTop = chatWindow.scrollHeight;
+}
+
+window.onload = () => {
+  loadHistory();
+};
   </script>
 </body>
 </html>

@@ -3,19 +3,27 @@ from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 import os
 from src.helper import answer_query_stream, update_index
+from datetime import datetime
 
 app = Flask(__name__)
 app.secret_key = 'rag_chatbot'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
 db = SQLAlchemy(app)
 
-# User model
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(150), unique=True, nullable=False)
     password = db.Column(db.String(150), nullable=False)
 
-# Create tables
+class ChatHistory(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    user_message = db.Column(db.Text, nullable=False)
+    bot_response = db.Column(db.Text, nullable=False)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship('User', backref=db.backref('chat_history', lazy=True))
+
 with app.app_context():
     db.create_all()
 
@@ -74,11 +82,40 @@ def chat():
     user_message = data.get('message', '')
 
     def generate():
+        bot_chunks = []
         for chunk in answer_query_stream(user_message, session['username']):
+            bot_chunks.append(chunk)
             yield chunk
 
-    # Note: This sends plain text chunks continuously
+        full_bot_response = ''.join(bot_chunks)
+        user = User.query.filter_by(username=session['username']).first()
+        new_chat = ChatHistory(
+            user_id=user.id,
+            user_message=user_message,
+            bot_response=full_bot_response
+        )
+        db.session.add(new_chat)
+        db.session.commit()
+
     return Response(stream_with_context(generate()), mimetype='text/plain')
+
+@app.route('/get_history', methods=['GET'])
+def get_history():
+    if 'username' not in session:
+        return jsonify([])
+
+    user = User.query.filter_by(username=session['username']).first()
+    chats = ChatHistory.query.filter_by(user_id=user.id).order_by(ChatHistory.timestamp).all()
+
+    history = []
+    for chat in chats:
+        history.append({
+            'user_message': chat.user_message,
+            'bot_response': chat.bot_response,
+            'timestamp': chat.timestamp.isoformat()
+        })
+
+    return jsonify(history)
 
 @app.route('/upload_pdf', methods=['POST'])
 def upload_pdf():

@@ -1,0 +1,9 @@
+[33mdfea475[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m streaming responses
+[33md326cb7[m set threshold value to switch between rag and normal llm
+[33m127a3d4[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m login/signup functionality added
+[33m43cf848[m basic rag chatbot created
+[33m416b6b6[m chat ui created
+[33maba4153[m trials.ipynb and requirements finalized
+[33m5b98e6b[m trials.ipynb working
+[33mf8454a0[m project structure added
+[33mfc5e5af[m Initial commit
