@@ -3,14 +3,19 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>ChatBot</title>
+  <title>RAG Chatbot</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
 </head>
 
 <body>
   <div class="chat-container">
     <header class="chat-header">
-      <h1>RAG Chatbot</h1>
+      <div class="header-left">
+        <h1>RAG Chatbot</h1>
+        <select id="pdf-selector" class="pdf-selector">
+          <option value="">Base LLM</option>
+        </select>
+      </div>
       <a href="/logout" class="logout-btn">Logout</a>
     </header>
 
@@ -34,6 +39,7 @@
     const input = document.getElementById('user-input');
     const chatWindow = document.getElementById('chat-window');
     const pdfInput = document.getElementById('pdf-upload');
+    const pdfSelector = document.getElementById('pdf-selector');
 
     form.addEventListener('submit', function (e) {
       e.preventDefault();
@@ -65,6 +71,7 @@
         addMessage('bot', `✅ Uploaded: ${file.name}`);
         addMessage('bot', data.message);
         pdfInput.value = '';
+        await loadPDFs();
       })
       .catch(err => {
         console.error('Upload error:', err);
@@ -72,7 +79,7 @@
       });
     });
 
-    function addMessage(sender, text) {
+    function addMessage(sender, text, timeValue = null) {
       const messageWrapper = document.createElement('div');
       messageWrapper.classList.add('message', sender);
 
@@ -82,7 +89,13 @@
 
       const time = document.createElement('div');
       time.classList.add('message-time');
-      time.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+      if (timeValue) {
+        const ts = new Date(timeValue);
+        time.textContent = ts.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      } else {
+        time.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      }
 
       messageWrapper.appendChild(messageText);
       messageWrapper.appendChild(time);
@@ -92,6 +105,8 @@
     }
 
     function streamBotResponse(userMessage) {
+      const namespace = pdfSelector.value || null;
+
       const messageWrapper = document.createElement('div');
       messageWrapper.classList.add('message', 'bot');
 
@@ -106,10 +121,10 @@
       chatWindow.appendChild(messageWrapper);
       chatWindow.scrollTop = chatWindow.scrollHeight;
 
-      fetch('/chat', { 
+      fetch('/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: userMessage })
+        body: JSON.stringify({ message: userMessage, namespace: namespace })
       })
       .then(response => {
         if (!response.body) throw new Error('ReadableStream not supported');
@@ -135,66 +150,53 @@
       })
       .catch(err => {
         console.error('Streaming error:', err);
-        addMessage('bot', '❌ Error receiving streamed response.');
+        addMessage('bot', '❌ Error receiving response.');
       });
     }
-    
-async function loadHistory() {
-  const response = await fetch('/get_history');
-  const history = await response.json();
 
-  let lastDate = null;
+    async function loadHistory() {
+      const response = await fetch('/get_history');
+      const history = await response.json();
 
-  history.forEach(chat => {
-    const ts = new Date(chat.timestamp);
-    const dateStr = ts.toDateString();
+      let lastDate = null;
 
-    if (dateStr !== lastDate) {
-      insertDateSeparator(dateStr);
-      lastDate = dateStr;
+      history.forEach(chat => {
+        const ts = new Date(chat.timestamp);
+        const dateStr = ts.toDateString();
+
+        if (dateStr !== lastDate) {
+          insertDateSeparator(dateStr);
+          lastDate = dateStr;
+        }
+
+        addMessage('user', chat.user_message, chat.timestamp);
+        addMessage('bot', chat.bot_response, chat.timestamp);
+      });
     }
 
-    addMessage('user', chat.user_message, chat.timestamp);
-    addMessage('bot', chat.bot_response, chat.timestamp);
-  });
-}
+    async function loadPDFs() {
+      const response = await fetch('/get_pdfs');
+      const pdfs = await response.json();
+      pdfSelector.innerHTML = '<option value="">Base LLM</option>';
+      pdfs.forEach(pdf => {
+        const option = document.createElement('option');
+        option.value = pdf.pdf_name;
+        option.textContent = pdf.pdf_name;
+        pdfSelector.appendChild(option);
+      });
+    }
 
-function insertDateSeparator(dateStr) {
-  const separator = document.createElement('div');
-  separator.classList.add('date-separator');
-  separator.textContent = dateStr;
-  chatWindow.appendChild(separator);
-}
+    function insertDateSeparator(dateStr) {
+      const separator = document.createElement('div');
+      separator.classList.add('date-separator');
+      separator.textContent = dateStr;
+      chatWindow.appendChild(separator);
+    }
 
-
-function addMessage(sender, text, timeValue = null) {
-  const messageWrapper = document.createElement('div');
-  messageWrapper.classList.add('message', sender);
-
-  const messageText = document.createElement('div');
-  messageText.classList.add('message-text');
-  messageText.textContent = text;
-
-  const time = document.createElement('div');
-  time.classList.add('message-time');
-
-  if (timeValue) {
-    const ts = new Date(timeValue);
-    time.textContent = ts.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  } else {
-    time.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  }
-
-  messageWrapper.appendChild(messageText);
-  messageWrapper.appendChild(time);
-
-  chatWindow.appendChild(messageWrapper);
-  chatWindow.scrollTop = chatWindow.scrollHeight;
-}
-
-window.onload = () => {
-  loadHistory();
-};
+    window.onload = () => {
+      loadHistory();
+      loadPDFs();
+    };
   </script>
 </body>
 </html>

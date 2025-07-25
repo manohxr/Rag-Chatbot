@@ -37,19 +37,19 @@ def chunk_data(docs, chunk_size=800, chunk_overlap=50):
 def convert_chunks_to_list(chunks):
     return [{"_id": f"rec{i}", "chunk_text": doc.page_content} for i, doc in enumerate(chunks, 1)]
 
-def update_index(username):
+def update_index(username, namespace):
     index = create_or_get_index(username)
     docs = load_pdf_files(f'Data/{username}')
     chunks = chunk_data(docs)
     text_list = convert_chunks_to_list(chunks)
     for i in range(0, len(text_list), 96):
-        index.upsert_records("example-namespace", text_list[i:i+96])
-    return f"Index updated with {len(text_list)} chunks."
+        index.upsert_records(namespace, text_list[i:i+96])
+    return f"Index updated with {len(text_list)} chunks under namespace '{namespace}'."
 
-def retrieve_query(query, username, k=4):
+def retrieve_query(query, username, namespace, k=4):
     index = create_or_get_index(username)
     results = index.search(
-        namespace="example-namespace",
+        namespace=namespace,
         query={"inputs": {"text": query}, "top_k": k},
         fields=["chunk_text"]
     )
@@ -63,18 +63,19 @@ def retrieve_query(query, username, k=4):
             ))
     return docs
 
-def answer_query_stream(query, username):
-    """
-    Yields chunks from OpenAI streaming — using RAG context if relevant.
-    """
-    docs = retrieve_query(query, username)
-    threshold = 0.09
-    relevant_docs = [doc for doc in docs if doc.metadata.get("score", 0) >= threshold]
+def answer_query_stream(query, username, namespace=None):
+    if namespace:
+        docs = retrieve_query(query, username, namespace)
+        threshold = 0.2
+        relevant_docs = [doc for doc in docs if doc.metadata.get("score", 0) >= threshold]
 
-    if relevant_docs:
-        context = "\n\n".join(doc.page_content for doc in relevant_docs)
-        prompt = f"Answer the user using ONLY the context below if possible.\n\nContext:\n{context}\n\nQuestion:\n{query}"
+        if relevant_docs:
+            context = "\n\n".join(doc.page_content for doc in relevant_docs)
+            prompt = f"Answer the user using ONLY the context below if possible.\n\nContext:\n{context}\n\nQuestion:\n{query}"
+        else:
+            prompt = query
     else:
+        # fallback to base LLM
         prompt = query
 
     stream = client.chat.completions.create(

@@ -24,6 +24,14 @@ class ChatHistory(db.Model):
 
     user = db.relationship('User', backref=db.backref('chat_history', lazy=True))
 
+class UserPDF(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    pdf_name = db.Column(db.String(255), nullable=False)
+    uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship('User', backref=db.backref('pdfs', lazy=True))
+
 with app.app_context():
     db.create_all()
 
@@ -80,10 +88,11 @@ def chat():
 
     data = request.get_json()
     user_message = data.get('message', '')
+    namespace = data.get('namespace')
 
     def generate():
         bot_chunks = []
-        for chunk in answer_query_stream(user_message, session['username']):
+        for chunk in answer_query_stream(user_message, session['username'], namespace):
             bot_chunks.append(chunk)
             yield chunk
 
@@ -117,12 +126,32 @@ def get_history():
 
     return jsonify(history)
 
+@app.route('/get_pdfs', methods=['GET'])
+def get_pdfs():
+    if 'username' not in session:
+        return jsonify([])
+
+    user = User.query.filter_by(username=session['username']).first()
+    pdfs = UserPDF.query.filter_by(user_id=user.id).all()
+
+    pdf_list = []
+    for pdf in pdfs:
+        pdf_list.append({
+            'id': pdf.id,
+            'pdf_name': pdf.pdf_name,
+            'uploaded_at': pdf.uploaded_at.isoformat()
+        })
+
+    return jsonify(pdf_list)
+
 @app.route('/upload_pdf', methods=['POST'])
 def upload_pdf():
     if 'username' not in session:
         return jsonify({'message': 'Unauthorized'}), 401
 
     username = session['username']
+    user = User.query.filter_by(username=username).first()
+
     if 'pdf' not in request.files:
         return jsonify({'message': 'No file uploaded'}), 400
 
@@ -132,14 +161,27 @@ def upload_pdf():
     if not file.filename.lower().endswith('.pdf'):
         return jsonify({'message': 'Only PDF files allowed'}), 400
 
+    # Save file
     user_folder = os.path.join(UPLOAD_ROOT, username)
     os.makedirs(user_folder, exist_ok=True)
-
     save_path = os.path.join(user_folder, file.filename)
     file.save(save_path)
 
-    update_message = update_index(username)
-    return jsonify({'message': f'File {file.filename} uploaded! {update_message}'}), 200
+    namespace = os.path.splitext(file.filename)[0]
+
+    update_message = update_index(username, namespace)
+
+    existing = UserPDF.query.filter_by(user_id=user.id, pdf_name=namespace).first()
+    if not existing:
+        new_pdf = UserPDF(user_id=user.id, pdf_name=namespace)
+        db.session.add(new_pdf)
+        db.session.commit()
+
+    return jsonify({
+        'message': f'File {file.filename} uploaded! {update_message}',
+        'namespace': namespace
+    }), 200
+
 
 if __name__ == '__main__':
     app.run(debug=True)
