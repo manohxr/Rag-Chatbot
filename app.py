@@ -1,36 +1,17 @@
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, Response, stream_with_context
-from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 import os
 from src.helper import answer_query_stream, update_index, create_or_get_index
-from datetime import datetime
+from dotenv import load_dotenv
+from src.models import db, User, ChatHistory, UserPDF
+
+load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = 'rag_chatbot'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
-db = SQLAlchemy(app)
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('SQLALCHEMY_DATABASE_URI')
 
-class User(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(150), unique=True, nullable=False)
-    password = db.Column(db.String(150), nullable=False)
-
-class ChatHistory(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    user_message = db.Column(db.Text, nullable=False)
-    bot_response = db.Column(db.Text, nullable=False)
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
-
-    user = db.relationship('User', backref=db.backref('chat_history', lazy=True))
-
-class UserPDF(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    pdf_name = db.Column(db.String(255), nullable=False)
-    uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    user = db.relationship('User', backref=db.backref('pdfs', lazy=True))
+db.init_app(app)
 
 with app.app_context():
     db.create_all()
