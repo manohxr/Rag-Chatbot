@@ -2,7 +2,7 @@ from flask import Flask, render_template, request, redirect, url_for, session, j
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 import os
-from src.helper import answer_query_stream, update_index
+from src.helper import answer_query_stream, update_index, create_or_get_index
 from datetime import datetime
 
 app = Flask(__name__)
@@ -169,8 +169,17 @@ def upload_pdf():
 
     namespace = os.path.splitext(file.filename)[0]
 
-    update_message = update_index(username, namespace)
+    # Call your indexing logic
+    update_message, chunks_indexed = update_index(username, namespace)
 
+    if not chunks_indexed:
+        # Clean up: delete the file to keep it clean
+        os.remove(save_path)
+        return jsonify({
+            'message': f'File {file.filename} uploaded but contains no valid text — nothing was indexed.'
+        }), 400
+
+    # Only add DB entry if chunks actually indexed
     existing = UserPDF.query.filter_by(user_id=user.id, pdf_name=namespace).first()
     if not existing:
         new_pdf = UserPDF(user_id=user.id, pdf_name=namespace)
@@ -178,10 +187,36 @@ def upload_pdf():
         db.session.commit()
 
     return jsonify({
-        'message': f'File {file.filename} uploaded! {update_message}',
+        'message': f'File {file.filename} uploaded and indexed!',
         'namespace': namespace
     }), 200
 
+
+@app.route('/delete_pdf', methods=['POST'])
+def delete_pdf():
+    if 'username' not in session:
+        return jsonify({'message': 'Unauthorized'}), 401
+
+    data = request.get_json()
+    pdf_name = data.get('pdf_name')
+
+    username = session['username']
+    index = create_or_get_index(username)
+    index.delete(namespace=pdf_name, delete_all=True)  
+
+    # Delete DB entry
+    user = User.query.filter_by(username=username).first()
+    pdf_entry = UserPDF.query.filter_by(user_id=user.id, pdf_name=pdf_name).first()
+    if pdf_entry:
+        db.session.delete(pdf_entry)
+        db.session.commit()
+
+    # Delete file
+    pdf_path = os.path.join(UPLOAD_ROOT, username, f"{pdf_name}.pdf")
+    if os.path.exists(pdf_path):
+        os.remove(pdf_path)
+
+    return jsonify({'message': f"PDF '{pdf_name}' deleted!"})
 
 if __name__ == '__main__':
     app.run(debug=True)

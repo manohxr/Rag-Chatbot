@@ -26,8 +26,11 @@ def create_or_get_index(username):
     )
     return index
 
-def load_pdf_files(user_folder):
-    loader = DirectoryLoader(user_folder, glob="*.pdf", loader_cls=PyPDFLoader)
+def load_pdf_files(path):
+    if os.path.isdir(path):
+        loader = DirectoryLoader(path)
+    else:
+        loader = PyPDFLoader(path)
     return loader.load()
 
 def chunk_data(docs, chunk_size=800, chunk_overlap=50):
@@ -38,13 +41,21 @@ def convert_chunks_to_list(chunks):
     return [{"_id": f"rec{i}", "chunk_text": doc.page_content} for i, doc in enumerate(chunks, 1)]
 
 def update_index(username, namespace):
-    index = create_or_get_index(username)
-    docs = load_pdf_files(f'Data/{username}')
+    # This assumes your file is in: Data/{username}/{namespace}.pdf
+    pdf_path = f'Data/{username}/{namespace}.pdf'
+    docs = load_pdf_files(pdf_path)  # Load ONLY the uploaded file
+
     chunks = chunk_data(docs)
     text_list = convert_chunks_to_list(chunks)
+
+    if not text_list:
+        return f"No chunks found for '{namespace}'.", 0
+
+    index = create_or_get_index(username)
     for i in range(0, len(text_list), 96):
         index.upsert_records(namespace, text_list[i:i+96])
-    return f"Index updated with {len(text_list)} chunks under namespace '{namespace}'."
+
+    return f"Index updated with {len(text_list)} chunks under namespace '{namespace}'.", len(text_list)
 
 def retrieve_query(query, username, namespace, k=4):
     index = create_or_get_index(username)

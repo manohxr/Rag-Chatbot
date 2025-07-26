@@ -12,9 +12,13 @@
     <header class="chat-header">
       <div class="header-left">
         <h1>RAG Chatbot</h1>
-        <select id="pdf-selector" class="pdf-selector">
-          <option value="">Base LLM</option>
-        </select>
+
+        <div class="custom-dropdown">
+          <button id="dropdown-toggle" class="dropdown-toggle">Base LLM ⏷</button>
+          <div id="dropdown-list" class="dropdown-list hidden">
+            <div class="dropdown-item" data-value="">Base LLM</div>
+          </div>
+        </div>
       </div>
       <a href="/logout" class="logout-btn">Logout</a>
     </header>
@@ -39,7 +43,68 @@
     const input = document.getElementById('user-input');
     const chatWindow = document.getElementById('chat-window');
     const pdfInput = document.getElementById('pdf-upload');
-    const pdfSelector = document.getElementById('pdf-selector');
+
+    const dropdownToggle = document.getElementById('dropdown-toggle');
+    const dropdownList = document.getElementById('dropdown-list');
+    let selectedNamespace = '';
+
+    dropdownToggle.addEventListener('click', () => {
+      dropdownList.classList.toggle('hidden');
+    });
+
+    window.addEventListener('click', (e) => {
+      if (!dropdownToggle.contains(e.target) && !dropdownList.contains(e.target)) {
+        dropdownList.classList.add('hidden');
+      }
+    });
+
+    dropdownList.addEventListener('click', (e) => {
+      const item = e.target.closest('.dropdown-item');
+      if (!item) return;
+      if (e.target.classList.contains('trash')) return;
+      const val = item.dataset.value;
+      selectedNamespace = val;
+      dropdownToggle.textContent = val || 'Base LLM ⏷';
+      dropdownList.classList.add('hidden');
+    });
+
+    async function loadPDFs() {
+      const response = await fetch('/get_pdfs');
+      const pdfs = await response.json();
+
+      dropdownList.innerHTML = `<div class="dropdown-item" data-value="">Base LLM</div>`;
+
+      pdfs.forEach(pdf => {
+        const item = document.createElement('div');
+        item.className = 'dropdown-item';
+        item.dataset.value = pdf.pdf_name;
+        item.innerHTML = `
+          <span>${pdf.pdf_name}</span>
+          <span class="trash">🗑️</span>
+        `;
+
+        item.querySelector('.trash').addEventListener('click', async (e) => {
+          e.stopPropagation();
+          if (!confirm(`Delete "${pdf.pdf_name}"? This cannot be undone.`)) return;
+
+          const res = await fetch('/delete_pdf', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pdf_name: pdf.pdf_name })
+          });
+          const result = await res.json();
+
+          if (res.ok) {
+            addMessage('bot', `${result.message}`);
+            loadPDFs();
+          } else {
+            addMessage('bot', `${result.message}`);
+          }
+        });
+
+        dropdownList.appendChild(item);
+      });
+    }
 
     form.addEventListener('submit', function (e) {
       e.preventDefault();
@@ -62,21 +127,21 @@
         method: 'POST',
         body: formData
       })
-      .then(async response => {
-        const data = await response.json();
-        if (!response.ok) {
-          addMessage('bot', data.message || '❌ Upload failed.');
-          throw new Error(data.message || 'Upload failed.');
-        }
-        addMessage('bot', `✅ Uploaded: ${file.name}`);
-        addMessage('bot', data.message);
-        pdfInput.value = '';
-        await loadPDFs();
-      })
-      .catch(err => {
-        console.error('Upload error:', err);
-        addMessage('bot', '❌ Error uploading file.');
-      });
+        .then(async response => {
+          const data = await response.json();
+          if (!response.ok) {
+            addMessage('bot', data.message || 'Upload failed, please try again.');
+            throw new Error(data.message || 'Upload failed.');
+          }
+          addMessage('bot', `Uploaded: ${file.name}`);
+          addMessage('bot', data.message);
+          pdfInput.value = '';
+          await loadPDFs();
+        })
+        .catch(err => {
+          console.error('Upload error:', err);
+          addMessage('bot', 'Error uploading file, please try again.');
+        });
     });
 
     function addMessage(sender, text, timeValue = null) {
@@ -105,7 +170,7 @@
     }
 
     function streamBotResponse(userMessage) {
-      const namespace = pdfSelector.value || null;
+      const namespace = selectedNamespace || null;
 
       const messageWrapper = document.createElement('div');
       messageWrapper.classList.add('message', 'bot');
@@ -126,32 +191,32 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: userMessage, namespace: namespace })
       })
-      .then(response => {
-        if (!response.body) throw new Error('ReadableStream not supported');
+        .then(response => {
+          if (!response.body) throw new Error('ReadableStream not supported');
 
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let fullText = '';
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          let fullText = '';
 
-        function read() {
-          reader.read().then(({ done, value }) => {
-            if (done) {
-              time.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-              return;
-            }
-            const chunk = decoder.decode(value);
-            fullText += chunk;
-            messageText.textContent = fullText;
-            chatWindow.scrollTop = chatWindow.scrollHeight;
-            read();
-          });
-        }
-        read();
-      })
-      .catch(err => {
-        console.error('Streaming error:', err);
-        addMessage('bot', '❌ Error receiving response.');
-      });
+          function read() {
+            reader.read().then(({ done, value }) => {
+              if (done) {
+                time.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                return;
+              }
+              const chunk = decoder.decode(value);
+              fullText += chunk;
+              messageText.textContent = fullText;
+              chatWindow.scrollTop = chatWindow.scrollHeight;
+              read();
+            });
+          }
+          read();
+        })
+        .catch(err => {
+          console.error('Streaming error:', err);
+          addMessage('bot', 'Error - could not get response');
+        });
     }
 
     async function loadHistory() {
@@ -171,18 +236,6 @@
 
         addMessage('user', chat.user_message, chat.timestamp);
         addMessage('bot', chat.bot_response, chat.timestamp);
-      });
-    }
-
-    async function loadPDFs() {
-      const response = await fetch('/get_pdfs');
-      const pdfs = await response.json();
-      pdfSelector.innerHTML = '<option value="">Base LLM</option>';
-      pdfs.forEach(pdf => {
-        const option = document.createElement('option');
-        option.value = pdf.pdf_name;
-        option.textContent = pdf.pdf_name;
-        pdfSelector.appendChild(option);
       });
     }
 

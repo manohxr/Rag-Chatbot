@@ -26,6 +26,7 @@ html, body {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
 }
 
 .header-left {
@@ -37,19 +38,7 @@ html, body {
 .chat-header h1 {
   margin: 0;
   font-size: 1.8rem;
-}
-
-.pdf-selector {
-  padding: 0.4rem 0.8rem;
-  border-radius: 4px;
-  background: #333;
-  color: #fff;
-  border: none;
-  cursor: pointer;
-}
-
-.pdf-selector:focus {
-  outline: none;
+  font-weight: 600;
 }
 
 .logout-btn {
@@ -57,13 +46,14 @@ html, body {
   background: #e74c3c;
   padding: 0.5rem 1rem;
   text-decoration: none;
-  border-radius: 4px;
+  border-radius: 6px;
   font-size: 0.9rem;
-  transition: background 0.2s ease;
+  transition: background 0.2s ease, transform 0.2s ease;
 }
 
 .logout-btn:hover {
   background: #c0392b;
+  transform: translateY(-1px);
 }
 
 .chat-window {
@@ -82,9 +72,10 @@ html, body {
 }
 
 .message-text {
-  padding: 12px 18px;
+  padding: 14px 20px;
   border-radius: 20px;
   word-wrap: break-word;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
 }
 
 .message-time {
@@ -106,7 +97,7 @@ html, body {
 }
 
 .message.bot .message-text {
-  background-color: #333;
+  background-color: #2a2a3d;
 }
 
 .date-separator {
@@ -143,33 +134,36 @@ html, body {
   position: sticky;
   bottom: 0;
   gap: 10px;
+  box-shadow: 0 -2px 6px rgba(0,0,0,0.3);
 }
 
 #user-input {
   flex: 1;
-  padding: 12px 18px;
+  padding: 14px 20px;
   border: none;
   border-radius: 30px;
   background-color: #2b2b3c;
   color: #fff;
   font-size: 1rem;
+  transition: box-shadow 0.2s ease;
 }
 
 #user-input:focus {
   outline: none;
+  box-shadow: 0 0 0 2px #6a0dad;
 }
 
 .upload-icon {
   display: flex;
   align-items: center;
   cursor: pointer;
-  color: #6a0dad;
+  color: #8a2be2;
   transition: color 0.2s ease, transform 0.2s ease;
   margin-right: 5px;
 }
 
 .upload-icon:hover {
-  color: #8a2be2;
+  color: #b26cf2;
   transform: scale(1.2);
 }
 
@@ -186,11 +180,73 @@ html, body {
   padding: 12px 24px;
   font-size: 1rem;
   cursor: pointer;
-  transition: background 0.2s ease;
+  transition: background 0.2s ease, transform 0.2s ease;
 }
 
 #chat-form button:hover {
   background-color: #8a2be2;
+  transform: translateY(-1px);
+}
+
+.custom-dropdown {
+  position: relative;
+  display: inline-block;
+}
+
+.dropdown-toggle {
+  background: #222;
+  color: #fff;
+  border: 1px solid #555;
+  padding: 8px 16px;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.dropdown-toggle:hover {
+  background: #333;
+}
+
+.dropdown-list {
+  position: absolute;
+  top: 110%;
+  left: 0;
+  background: #1a1a2b;
+  border: 1px solid #555;
+  width: 100%;
+  z-index: 1000;
+  max-height: 200px;
+  overflow-y: auto;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+
+.dropdown-item {
+  padding: 8px 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.dropdown-item:hover {
+  background: #333;
+}
+
+.dropdown-item .trash {
+  margin-left: 8px;
+  cursor: pointer;
+  color: #e74c3c;
+  transition: transform 0.2s ease;
+}
+
+.dropdown-item .trash:hover {
+  transform: scale(1.2);
+}
+
+.hidden {
+  display: none;
 }
 
 @media (max-width: 768px) {
@@ -200,9 +256,6 @@ html, body {
   .header-left {
     flex-direction: column;
     align-items: flex-start;
-  }
-  .pdf-selector {
-    margin-top: 0.5rem;
   }
   #chat-form {
     padding: 15px 20px;
