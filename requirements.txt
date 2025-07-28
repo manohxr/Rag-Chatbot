@@ -13,4 +13,5 @@ pymongo
 Flask-Login
 Flask-SQLAlchemy
 werkzeug
+psycopg2-binary
 -e .

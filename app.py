@@ -1,9 +1,10 @@
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, Response, stream_with_context
 from werkzeug.security import generate_password_hash, check_password_hash
 import os
-from src.helper import answer_query_stream, update_index, create_or_get_index
+from src.helper import answer_query_stream, update_index_from_stream, create_or_get_index
 from dotenv import load_dotenv
 from src.models import db, User, ChatHistory, UserPDF
+from io import BytesIO
 
 load_dotenv()
 
@@ -12,12 +13,6 @@ app.secret_key = 'rag_chatbot'
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('SQLALCHEMY_DATABASE_URI')
 
 db.init_app(app)
-
-with app.app_context():
-    db.create_all()
-
-UPLOAD_ROOT = os.path.join(os.getcwd(), 'Data')
-os.makedirs(UPLOAD_ROOT, exist_ok=True)
 
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
@@ -33,7 +28,6 @@ def signup():
         db.session.add(new_user)
         db.session.commit()
 
-        os.makedirs(os.path.join(UPLOAD_ROOT, username), exist_ok=True)
         return redirect(url_for('login'))
 
     return render_template('signup.html')
@@ -142,35 +136,32 @@ def upload_pdf():
     if not file.filename.lower().endswith('.pdf'):
         return jsonify({'message': 'Only PDF files allowed'}), 400
 
-    # Save file
-    user_folder = os.path.join(UPLOAD_ROOT, username)
-    os.makedirs(user_folder, exist_ok=True)
-    save_path = os.path.join(user_folder, file.filename)
-    file.save(save_path)
-
     namespace = os.path.splitext(file.filename)[0]
 
-    # Call your indexing logic
-    update_message, chunks_indexed = update_index(username, namespace)
+    try:
+        file_stream = BytesIO(file.read())
+        update_message, chunks_indexed = update_index_from_stream(username, namespace, file_stream)
 
-    if not chunks_indexed:
-        # Clean up: delete the file to keep it clean
-        os.remove(save_path)
+        if not chunks_indexed:
+            return jsonify({
+                'message': f'File {file.filename} uploaded but contains no valid text — nothing was indexed.'
+            }), 400
+
+        # Save to DB if successfully indexed
+        existing = UserPDF.query.filter_by(user_id=user.id, pdf_name=namespace).first()
+        if not existing:
+            new_pdf = UserPDF(user_id=user.id, pdf_name=namespace)
+            db.session.add(new_pdf)
+            db.session.commit()
+
         return jsonify({
-            'message': f'File {file.filename} uploaded but contains no valid text — nothing was indexed.'
-        }), 400
+            'message': f'File {file.filename} uploaded and indexed!',
+            'namespace': namespace
+        }), 200
 
-    # Only add DB entry if chunks actually indexed
-    existing = UserPDF.query.filter_by(user_id=user.id, pdf_name=namespace).first()
-    if not existing:
-        new_pdf = UserPDF(user_id=user.id, pdf_name=namespace)
-        db.session.add(new_pdf)
-        db.session.commit()
+    except Exception as e:
+        return jsonify({'message': f"Error processing file: {str(e)}"}), 500
 
-    return jsonify({
-        'message': f'File {file.filename} uploaded and indexed!',
-        'namespace': namespace
-    }), 200
 
 
 @app.route('/delete_pdf', methods=['POST'])
@@ -191,11 +182,6 @@ def delete_pdf():
     if pdf_entry:
         db.session.delete(pdf_entry)
         db.session.commit()
-
-    # Delete file
-    pdf_path = os.path.join(UPLOAD_ROOT, username, f"{pdf_name}.pdf")
-    if os.path.exists(pdf_path):
-        os.remove(pdf_path)
 
     return jsonify({'message': f"PDF '{pdf_name}' deleted!"})
 

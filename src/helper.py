@@ -1,11 +1,11 @@
-# helper.py
 import os
 from dotenv import load_dotenv
-from langchain.document_loaders import DirectoryLoader, PyPDFLoader
+from langchain.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.schema import Document
 from pinecone import Pinecone
 from openai import OpenAI
+import tempfile
 
 load_dotenv()
 openai_api_key = os.getenv("OPENAI_API_KEY")
@@ -26,12 +26,19 @@ def create_or_get_index(username):
     )
     return index
 
-def load_pdf_files(path):
-    if os.path.isdir(path):
-        loader = DirectoryLoader(path)
-    else:
-        loader = PyPDFLoader(path)
-    return loader.load()
+def load_pdf_file_from_stream(file_stream):
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
+        tmp_file.write(file_stream.read())
+        tmp_file.flush()
+        temp_path = tmp_file.name
+
+    loader = PyPDFLoader(temp_path)
+    docs = loader.load()
+
+    os.remove(temp_path)
+
+    return docs
 
 def chunk_data(docs, chunk_size=800, chunk_overlap=50):
     splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
@@ -40,16 +47,14 @@ def chunk_data(docs, chunk_size=800, chunk_overlap=50):
 def convert_chunks_to_list(chunks):
     return [{"_id": f"rec{i}", "chunk_text": doc.page_content} for i, doc in enumerate(chunks, 1)]
 
-def update_index(username, namespace):
-    # This assumes your file is in: Data/{username}/{namespace}.pdf
-    pdf_path = f'Data/{username}/{namespace}.pdf'
-    docs = load_pdf_files(pdf_path)  # Load ONLY the uploaded file
+def update_index_from_stream(username, namespace, file_stream):
+    docs = load_pdf_file_from_stream(file_stream)
 
     chunks = chunk_data(docs)
     text_list = convert_chunks_to_list(chunks)
 
     if not text_list:
-        return f"No chunks found for '{namespace}'.", 0
+        return f"No chunks found in uploaded file.", 0
 
     index = create_or_get_index(username)
     for i in range(0, len(text_list), 96):
