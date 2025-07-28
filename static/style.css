@@ -199,6 +199,7 @@ html, body {
   border: 1px solid #555;
   padding: 8px 16px;
   cursor: pointer;
+  width: 200px;
   border-radius: 6px;
   transition: background 0.2s ease, transform 0.2s ease;
 }
@@ -249,6 +250,50 @@ html, body {
   display: none;
 }
 
+.error-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #2a2a2a;
+  color: #f87171;
+  padding: 10px 16px;
+  border-left: 4px solid #ef4444;
+  border-radius: 6px;
+  font-size: 14px;
+  margin-bottom: 16px;
+  line-height: 1.4;
+  opacity: 1;
+  transition: opacity 0.5s ease;
+}
+
+.fade-out {
+  opacity: 0;
+}
+
+.error-banner .message {
+  flex: 1;
+}
+
+.error-banner .close-btn {
+  background: none;
+  border: none;
+  color: #f87171;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 0 0 0 12px;
+  text-decoration: none;
+  outline: none;
+}
+
+.error-banner .close-btn:hover,
+.error-banner .close-btn:focus {
+  color: #f87171;
+  background: none;
+  text-decoration: none;
+  outline: none;
+  box-shadow: none;
+}
+
 @media (max-width: 768px) {
   .chat-header h1 {
     font-size: 1.5rem;
@@ -276,5 +321,29 @@ html, body {
   #chat-form button {
     padding: 10px 20px;
     font-size: 0.95rem;
+  }
+}
+
+.upload-icon-container {
+  position: relative;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid transparent;
+  border-top: 2px solid #8a2be2;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
   }
 }

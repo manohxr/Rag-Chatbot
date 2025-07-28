@@ -16,34 +16,40 @@ db.init_app(app)
 
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
+    error = None
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
         hashed_pw = generate_password_hash(password)
 
         if User.query.filter_by(username=username).first():
-            return "Username already exists!"
-        
-        new_user = User(username=username, password=hashed_pw)
-        db.session.add(new_user)
-        db.session.commit()
+            error = "Username already exists!"
+        else:
+            new_user = User(username=username, password=hashed_pw)
+            db.session.add(new_user)
+            db.session.commit()
+            return redirect(url_for('login'))
 
-        return redirect(url_for('login'))
-
-    return render_template('signup.html')
+    return render_template('signup.html', error=error)
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    error = None
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
         user = User.query.filter_by(username=username).first()
-        if user and check_password_hash(user.password, password):
+
+        if not user:
+            error = 'Username does not exist.'
+        elif not check_password_hash(user.password, password):
+            error = 'Invalid password.'
+        else:
             session['username'] = username
             return redirect(url_for('index'))
-        else:
-            return "Invalid credentials"
-    return render_template('login.html')
+
+    return render_template('login.html', error=error)
+
 
 @app.route('/logout')
 def logout():

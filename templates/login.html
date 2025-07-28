@@ -1,8 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Login</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
   <style>
@@ -12,7 +13,7 @@
       background: #1e1e2f;
       padding: 40px;
       border-radius: 8px;
-      box-shadow: 0 0 20px rgba(0,0,0,0.3);
+      box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
     }
 
     .auth-container h2 {
@@ -71,9 +72,17 @@
     }
   </style>
 </head>
+
 <body>
   <div class="auth-container">
     <h2>Login</h2>
+    {% if error %}
+    <div class="error-banner" id="errorBanner">
+      {{ error }}
+      <button class="close-btn" onclick="document.getElementById('errorBanner').style.display='none'">&times;</button>
+    </div>
+    {% endif %}
+
     <form method="POST">
       <input type="text" name="username" placeholder="Username" required />
       <input type="password" name="password" placeholder="Password" required />
@@ -83,5 +92,16 @@
       Don't have an account? <a href="{{ url_for('signup') }}">Sign up</a>
     </div>
   </div>
+  <script>
+    setTimeout(() => {
+      const banner = document.getElementById('errorBanner');
+      if (banner) {
+        banner.classList.add('fade-out');
+        setTimeout(() => banner.style.display = 'none', 500);
+      }
+    }, 5000);
+  </script>
+
 </body>
+
 </html>
