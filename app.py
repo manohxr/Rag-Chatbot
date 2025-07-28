@@ -1,30 +1,44 @@
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, Response, stream_with_context
 from werkzeug.security import generate_password_hash, check_password_hash
 import os
-from src.helper import answer_query_stream, update_index_from_stream, create_or_get_index
+from src.helper import answer_query_stream, update_index_from_stream, create_or_get_index, is_strong_password
 from dotenv import load_dotenv
 from src.models import db, User, ChatHistory, UserPDF
 from io import BytesIO
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 load_dotenv()
 
 app = Flask(__name__)
-app.secret_key = 'rag_chatbot'
+app.secret_key = os.getenv("SECRET_KEY")
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('SQLALCHEMY_DATABASE_URI')
 
 db.init_app(app)
 
+limiter = Limiter(
+    key_func=get_remote_address,
+    app=app,
+    default_limits=["200 per day", "50 per hour"],
+    headers_enabled=True,
+)
+
 @app.route('/signup', methods=['GET', 'POST'])
+@limiter.limit("10 per minute")
 def signup():
     error = None
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
-        hashed_pw = generate_password_hash(password)
 
-        if User.query.filter_by(username=username).first():
+        if not is_strong_password(password):
+            error = "Password must be at least 8 characters long and include uppercase, lowercase, number, and special character."
+
+        elif User.query.filter_by(username=username).first():
             error = "Username already exists!"
+
         else:
+            hashed_pw = generate_password_hash(password)
             new_user = User(username=username, password=hashed_pw)
             db.session.add(new_user)
             db.session.commit()
@@ -33,6 +47,7 @@ def signup():
     return render_template('signup.html', error=error)
 
 @app.route('/login', methods=['GET', 'POST'])
+@limiter.limit("20 per minute")
 def login():
     error = None
     if request.method == 'POST':
@@ -63,6 +78,7 @@ def index():
     return render_template('index.html')
 
 @app.route('/chat', methods=['POST'])
+@limiter.limit("50 per minute")
 def chat():
     if 'username' not in session:
         return jsonify({'response': 'Unauthorized'}), 401
@@ -153,7 +169,7 @@ def upload_pdf():
                 'message': f'File {file.filename} uploaded but contains no valid text — nothing was indexed.'
             }), 400
 
-        # Save to DB if successfully indexed
+        # Save to the database if successfully indexed
         existing = UserPDF.query.filter_by(user_id=user.id, pdf_name=namespace).first()
         if not existing:
             new_pdf = UserPDF(user_id=user.id, pdf_name=namespace)
@@ -182,7 +198,7 @@ def delete_pdf():
     index = create_or_get_index(username)
     index.delete(namespace=pdf_name, delete_all=True)  
 
-    # Delete DB entry
+    # delete from database
     user = User.query.filter_by(username=username).first()
     pdf_entry = UserPDF.query.filter_by(user_id=user.id, pdf_name=pdf_name).first()
     if pdf_entry:
@@ -191,5 +207,9 @@ def delete_pdf():
 
     return jsonify({'message': f"PDF '{pdf_name}' deleted!"})
 
+@app.errorhandler(429)
+def ratelimit_handler(e):
+    return jsonify(error="Too many requests, slow down!"), 429
+
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run()

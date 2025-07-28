@@ -6,6 +6,22 @@ from langchain.schema import Document
 from pinecone import Pinecone
 from openai import OpenAI
 import tempfile
+import re
+
+def is_strong_password(password):
+    """Check if password meets strength requirements."""
+    if len(password) < 8:
+        return False
+    if not re.search(r"[A-Z]", password):
+        return False
+    if not re.search(r"[a-z]", password):
+        return False
+    if not re.search(r"[0-9]", password):
+        return False
+    if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", password):
+        return False
+    return True
+
 
 load_dotenv()
 openai_api_key = os.getenv("OPENAI_API_KEY")
