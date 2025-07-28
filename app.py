@@ -184,6 +184,12 @@ def upload_pdf():
     except Exception as e:
         return jsonify({'message': f"Error processing file: {str(e)}"}), 500
 
+@app.route('/create_db')
+def create_db():
+    from flask import current_app
+    with current_app.app_context():
+        db.create_all()
+    return "✅ Database tables created!"
 
 
 @app.route('/delete_pdf', methods=['POST'])
