@@ -2,7 +2,8 @@ import os
 from dotenv import load_dotenv
 # from langchain.document_loaders import PyPDFLoader   old import
 from langchain_community.document_loaders import PyPDFLoader    #updated import
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+#from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain.schema import Document
 from pinecone import Pinecone
 from openai import OpenAI
