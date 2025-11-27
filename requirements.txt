@@ -17,3 +17,4 @@ psycopg2-binary
 Flask-Limiter
 gunicorn
 langchain
+langchain-text-splitters
