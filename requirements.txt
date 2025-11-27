@@ -16,3 +16,4 @@ werkzeug
 psycopg2-binary
 Flask-Limiter
 gunicorn
+langchain
